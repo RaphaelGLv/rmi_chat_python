@@ -27,6 +27,7 @@ class ChatServer:
         }
         
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.bind((host, port))
         self.server.listen()
         print(f"Servidor RMI (R/RR/RRA) aguardando em {host}:{port}...")
@@ -53,28 +54,31 @@ class ChatServer:
                 style = get_operation_style(op_id)
                 
                 if style == "RRA" and user:
-                    self._validate_RRA_idempotency()
+                    self._validate_RRA_idempotency(user, req_id, conn)
                     continue
 
                 handler = self.dispatch_table.get(op_id)
-                response = handler(args, context) if handler else {"status": "error", "msg": "Op inválida"}
+                if handler is None:
+                    response = {"status": "error", "message": "Operação inválida"}
+                else:
+                    try:
+                       response = handler(args, context)
+                    except Exception as e:
+                        response = {"status": "error", "message": f"Erro interno do servidor: {e}"}
 
-                # --- Envio de Resposta e Gestão de Tabela ---
                 if style in ["RR", "RRA"]:
                     chat_protocol.send_packet(conn, "reply", {"result": response}, req_id)
                     
                     if style == "RRA" and user:
-                        self._add_request_to_pending_ack_table()
+                        self._add_request_to_pending_ack_table(user, req_id, conn)
 
             except Exception as e:
                 print(f"Erro no cliente {addr}: {e}")
                 break
         conn.close()
 
-    # --- Handlers ---
-
+    # Handlers
     def _handle_ack(self, args, context):
-        """Limpa a tabela quando o cliente confirma o recebimento."""
         user = context["current_user"]
         req_id = args.get('target_requestId')
         if (user, req_id) in self.pending_ack_table:
@@ -83,7 +87,7 @@ class ChatServer:
         return None
 
     def _handle_login(self, args, context):
-        res = self.skeleton.login(args.get('username'), args.get('password'))
+        res = self.skeleton.login(args.get('username'), args.get('password'), context["conn"])
         if res['status'] == "success":
             context["current_user"] = args.get('username')
             self.skeleton.active_users[context["current_user"]] = context["conn"]
@@ -94,9 +98,8 @@ class ChatServer:
         content = args.get('content')
         self.skeleton.save_message(user, content)
         for name, sock in self.skeleton.active_users.items():
-            # Notification é estilo R (Fire and Forget)
             chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
-                                    {"from": user, "content": content}, style="R")
+                                    {"from": user, "content": content})
         return "Mensagem enviada"
 
     def _handle_send_private(self, args, context):
@@ -105,9 +108,9 @@ class ChatServer:
         if target in self.skeleton.active_users:
             chat_protocol.send_packet(self.skeleton.active_users[target], 
                                     ChatOperations.NOTIFICATION.value, 
-                                    {"from": f"{sender} (P)", "content": content}, style="R")
+                                    {"from": f"{sender} (P)", "content": content})
             return {"status": "success"}
-        return {"status": "error", "msg": "Offline"}
+        return {"status": "error", "message": "Offline"}
 
     def _handle_list_users(self, args, context):
         return {"users": list(self.skeleton.active_users.keys())}
@@ -116,20 +119,12 @@ class ChatServer:
         return self.skeleton.get_history()
 
     # Utils
-    def _get_comunication_style():
-        if op_id in [ChatOperations.LOGIN.value, ChatOperations.LIST_USERS.value, ChatOperations.GET_HISTORY.value]:
-            return "RR"
-        elif op_id in [ChatOperations.SEND_GLOBAL.value, ChatOperations.SEND_PRIVATE.value]:
-            return "RRA"
-        else:
-            return "R"
-
-    def _validate_RRA_idempotency():
+    def _validate_RRA_idempotency(self, user, req_id, conn):
         if (user, req_id) in self.pending_ack_table:
             print(f"[REPETIÇÃO] Request {req_id} já processado para {user}. Ignorando execução.")
             chat_protocol.send_packet(conn, "reply", {"result": "OK (Já processado)"}, req_id)
 
-    def _add_request_to_pending_ack_table():
+    def _add_request_to_pending_ack_table(self, user, req_id, conn):
         if len(self.pending_ack_table) >= self.MAX_PENDING_ACKS:
             oldest_key = next(iter(self.pending_ack_table))
             self.pending_ack_table.pop(oldest_key)

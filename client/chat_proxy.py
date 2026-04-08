@@ -1,6 +1,7 @@
 import traceback 
 import uuid
 import socket
+from client.exceptions.request_failed import RequestFailed
 from shared import chat_protocol
 from shared.enums.chat_operations import ChatOperations, get_operation_style
 
@@ -55,7 +56,7 @@ class ChatProxy:
                 break 
 
         self.sock.settimeout(None)
-        raise Exception(f"Operação {operation_id} falhou após {self.MAX_RETRIES} tentativas.")
+        raise RequestFailed(f"Operação {operation_id} falhou após {self.MAX_RETRIES} tentativas.")
 
     # --- Chamadas Remotas Transparentes ---
 

@@ -47,8 +47,8 @@ class ChatCommandHandler:
         if len(parts) < 3:
             print("[ERRO] Uso correto: /p <usuario> <mensagem>")
             return
-        target, msg = parts[1], parts[2]
-        self.proxy.send_private(target, msg)
+        target, message = parts[1], parts[2]
+        self.proxy.send_private(target, message)
 
     def _cmd_historico(self, _):
         history = self.proxy.get_history()
@@ -79,7 +79,7 @@ class ChatCommandHandler:
         descriptions = {
             UserCommands.SAIR: "Encerra o chat",
             UserCommands.USUARIOS: "Lista quem está online",
-            UserCommands.PRIVADO: "Mensagem privada (/p nick msg)",
+            UserCommands.PRIVADO: "Mensagem privada (/p nick message)",
             UserCommands.HISTORICO: "Mostra mensagens antigas",
             UserCommands.AJUDA: "Mostra este menu"
         }

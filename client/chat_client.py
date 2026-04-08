@@ -3,6 +3,8 @@ import threading
 import sys
 import os
 
+from client.exceptions.request_failed import RequestFailed
+
 sys.path.append(os.getcwd())
 
 from client.chat_proxy import ChatProxy
@@ -23,12 +25,21 @@ class ChatClient:
             self.sock.connect((self.host, self.port))
             self.proxy = ChatProxy(self.sock)
             
-            if self._authenticate():
-                self.is_running = True
-                self._start_listening_thread()
-                self._main_loop()
+            while not self.is_running:
+                try:
+                    if self._authenticate():
+                        self.is_running = True
+                except RequestFailed as e:
+                    print(f"\n[ERRO] {e}")
+                    print("[DICA] Verifique suas credenciais ou tente novamente.")
+
+            self._start_listening_thread()
+            self._main_loop()
+
+        except KeyboardInterrupt:
+            print("\n[SISTEMA] Encerrando por solicitação do usuário.")
         except Exception as e:
-            print(f"Erro ao conectar ao servidor: {e}")
+            print(f"\n[ERRO CRÍTICO] Falha na conexão: {e}")
         finally:
             self.stop()
 
@@ -86,7 +97,8 @@ class ChatClient:
             except ValueError as e:
                 print(e)
             except Exception as e:
-                print(f"\n[ERRO] Falha na operação: {e}")
+                print(f"\n[AVISO] Não foi possível completar a ação: {e}")
+                print("[DICA] Verifique sua conexão ou tente o comando novamente.")
 
     def stop(self):
         self.is_running = False

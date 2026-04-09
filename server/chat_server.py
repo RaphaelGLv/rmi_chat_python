@@ -5,6 +5,7 @@ import os
 
 sys.path.append(os.getcwd())
 
+from server.chat_dispatcher import ChatDispatcher
 from shared import chat_protocol
 from shared.enums.chat_operations import ChatOperations, get_operation_style
 from server.chat_skeleton import ChatSkeleton
@@ -13,18 +14,12 @@ class ChatServer:
     MAX_PENDING_ACKS = 10
 
     def __init__(self, host='0.0.0.0', port=5000):
-        # Pending ACK Table: { (username, request_id): status }
+        self._ack_lock = threading.Lock()
+        # Pending ACK Table: { (username, request_id): cached_response }
         self.pending_ack_table = {} 
         self.skeleton = ChatSkeleton()
+        self.dispatcher = ChatDispatcher(self.skeleton)
         
-        self.dispatch_table = {
-            ChatOperations.LOGIN.value: self._handle_login,
-            ChatOperations.LIST_USERS.value: self._handle_list_users,
-            ChatOperations.GET_HISTORY.value: self._handle_get_history,
-            ChatOperations.SEND_GLOBAL.value: self._handle_send_global,
-            ChatOperations.SEND_PRIVATE.value: self._handle_send_private,
-            ChatOperations.ACK.value: self._handle_ack,
-        }
         
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -50,86 +45,56 @@ class ChatServer:
                 args = request.get('args', {})
                 req_id = request.get('requestId')
                 user = context["current_user"]
+                
+                if op_id == ChatOperations.ACK.value:
+                    self._handle_ack_operation(args, user)
+                    continue
 
                 style = get_operation_style(op_id)
                 
                 if style == "RRA" and user:
-                    self._validate_RRA_idempotency(user, req_id, conn)
-                    continue
-
-                handler = self.dispatch_table.get(op_id)
-                if handler is None:
-                    response = {"status": "error", "message": "Operação inválida"}
-                else:
-                    try:
-                       response = handler(args, context)
-                    except Exception as e:
-                        response = {"status": "error", "message": f"Erro interno do servidor: {e}"}
+                    cached_response = self.pending_ack_table.get((user, req_id))
+                    if cached_response is not None:
+                        self._handle_cached_response(conn, cached_response, user, req_id)
+                        continue
+                    
+                try:
+                    response = self.dispatcher.dispatch(op_id, args, context)
+                except Exception as e:
+                    response = {"status": "error", "message": f"Erro interno do servidor: {e}"}
 
                 if style in ["RR", "RRA"]:
-                    chat_protocol.send_packet(conn, "reply", {"result": response}, req_id)
-                    
+                    chat_protocol.send_packet(conn, ChatOperations.REPLY.value, {"result": response}, req_id)
+
                     if style == "RRA" and user:
-                        self._add_request_to_pending_ack_table(user, req_id, conn)
+                        self._add_to_cache(user, req_id, response)
 
             except Exception as e:
                 print(f"Erro no cliente {addr}: {e}")
                 break
         conn.close()
-
-    # Handlers
-    def _handle_ack(self, args, context):
-        user = context["current_user"]
-        req_id = args.get('target_requestId')
-        if (user, req_id) in self.pending_ack_table:
-            del self.pending_ack_table[(user, req_id)]
-            print(f"[ACK] Limpo da tabela: Req {req_id} de {user}")
-        return None
-
-    def _handle_login(self, args, context):
-        res = self.skeleton.login(args.get('username'), args.get('password'), context["conn"])
-        if res['status'] == "success":
-            context["current_user"] = args.get('username')
-            self.skeleton.active_users[context["current_user"]] = context["conn"]
-        return res
-
-    def _handle_send_global(self, args, context):
-        user = context["current_user"]
-        content = args.get('content')
-        self.skeleton.save_message(user, content)
-        for name, sock in self.skeleton.active_users.items():
-            chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
-                                    {"from": user, "content": content})
-        return "Mensagem enviada"
-
-    def _handle_send_private(self, args, context):
-        sender = context["current_user"]
-        target, content = args.get('to'), args.get('content')
-        if target in self.skeleton.active_users:
-            chat_protocol.send_packet(self.skeleton.active_users[target], 
-                                    ChatOperations.NOTIFICATION.value, 
-                                    {"from": f"{sender} (P)", "content": content})
-            return {"status": "success"}
-        return {"status": "error", "message": "Offline"}
-
-    def _handle_list_users(self, args, context):
-        return {"users": list(self.skeleton.active_users.keys())}
-
-    def _handle_get_history(self, args, context):
-        return self.skeleton.get_history()
-
-    # Utils
-    def _validate_RRA_idempotency(self, user, req_id, conn):
-        if (user, req_id) in self.pending_ack_table:
-            print(f"[REPETIÇÃO] Request {req_id} já processado para {user}. Ignorando execução.")
-            chat_protocol.send_packet(conn, "reply", {"result": "OK (Já processado)"}, req_id)
-
-    def _add_request_to_pending_ack_table(self, user, req_id, conn):
-        if len(self.pending_ack_table) >= self.MAX_PENDING_ACKS:
-            oldest_key = next(iter(self.pending_ack_table))
-            self.pending_ack_table.pop(oldest_key)
         
-        self.pending_ack_table[(user, req_id)] = True
+    def _handle_ack_operation(self, args, user):
+        ack_req_id = args.get('target_requestId')
+        if (user, ack_req_id) in self.pending_ack_table:
+            del self.pending_ack_table[(user, ack_req_id)]
+            print(f"[ACK] Request {ack_req_id} confirmado por {user}.")
+            
+    def _handle_cached_response(self, conn, cached_response, user, req_id):
+        print(f"[REPETIÇÃO] Reenviando resposta cacheada para {user}: Req {req_id}")
+        chat_protocol.send_packet(conn, ChatOperations.REPLY.value, {"result": cached_response}, req_id)
+
+    def _validate_RRA_idempotency(self, user, req_id):
+        return (user, req_id) in self.pending_ack_table
+            
+
+    def _add_to_cache(self, user, req_id, response):
+        with self._ack_lock:
+            if len(self.pending_ack_table) >= self.MAX_PENDING_ACKS:
+                oldest_key = next(iter(self.pending_ack_table))
+                self.pending_ack_table.pop(oldest_key)
+            
+        self.pending_ack_table[(user, req_id)] = response
         print(f"[RRA] Aguardando ACK de {user} para req {req_id}")
 
 if __name__ == "__main__":

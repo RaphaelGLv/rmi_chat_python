@@ -1,3 +1,4 @@
+from datetime import datetime
 import socket
 import sqlite3
 
@@ -16,14 +17,14 @@ class ChatSkeleton:
             conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute('''CREATE TABLE IF NOT EXISTS messages 
-                            (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, message TEXT)''')
+                            (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, message TEXT, timestamp TEXT)''')
             cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                            (username TEXT PRIMARY KEY, password TEXT)''')
+                            (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)''')
             
             cursor.execute("SELECT COUNT(*) FROM users")
             if cursor.fetchone()[0] == 0:
-                cursor.execute("INSERT INTO users VALUES (?, ?)", ("admin", "123"))
-                cursor.execute("INSERT INTO users VALUES (?, ?)", ("user", "123"))
+                cursor.execute("INSERT INTO users VALUES (NULL, ?, ?)", ("admin", "123"))
+                cursor.execute("INSERT INTO users VALUES (NULL, ?, ?)", ("user", "123"))
                 
             conn.commit()
         finally:
@@ -62,21 +63,27 @@ class ChatSkeleton:
         return {"status": "success", "message": f"Bem-vindo {username}!", "username": username}
 
     def register_user(self, username, password, conn=None):
+        created_conn = False
         try:
             if conn is None:
                 conn = self._get_db_connection()
+                created_conn = True
             cursor = conn.cursor()
             cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, password))
             conn.commit()
         finally:
-            conn.close()
+            if created_conn:
+                conn.close()
         return {"status": "success", "message": f"Usuário {username} registrado com sucesso!"}
+    
+    def list_active_users(self):
+        return {"status": "success", "message": "Usuários listados com sucesso!", "data": {"users": list(self.active_users.keys())}}
 
     def save_message(self, sender, message):
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('INSERT INTO messages (sender, message) VALUES (?, ?)', (sender, message))
+            cursor.execute('INSERT INTO messages (sender, message, timestamp) VALUES (?, ?, ?)', (sender, message, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
             conn.commit()
         finally:
             conn.close()
@@ -86,8 +93,8 @@ class ChatSkeleton:
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor()
-            cursor.execute('SELECT sender, message FROM messages ORDER BY id DESC LIMIT 50')
+            cursor.execute('SELECT sender, message, timestamp FROM messages ORDER BY id DESC LIMIT 50')
             rows = cursor.fetchall()
         finally:
             conn.close()
-        return [{"sender": r[0], "message": r[1]} for r in reversed(rows)]
+        return [{"sender": r[0], "message": r[1], "timestamp": r[2]} for r in reversed(rows)]

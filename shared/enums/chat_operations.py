@@ -7,6 +7,7 @@ class ChatOperations(Enum):
     LIST_USERS = "list_users"
     GET_HISTORY = "get_history"
     NOTIFICATION = "notification"
+    REPLY = "reply"
     ACK = 'ack'
 
 def get_operation_style(op_id):

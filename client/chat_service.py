@@ -1,7 +1,8 @@
 from client.enums.user_commands import UserCommands
 
-class ChatCommandHandler:
+class ChatService:
     def __init__(self, proxy):
+        self._logged_in_username = None
         self.proxy = proxy
         self._commands = {
             UserCommands.SAIR: self._cmd_sair,
@@ -11,6 +12,9 @@ class ChatCommandHandler:
             UserCommands.HISTORICO: self._cmd_historico,
             UserCommands.AJUDA: self._show_help
         }
+        
+    def set_logged_in_user(self, username):
+        self._logged_in_username = username
 
     def execute(self, user_input):
         if not user_input.startswith("/"):
@@ -23,7 +27,7 @@ class ChatCommandHandler:
         try:
             command = UserCommands(cmd_str)
             return self._commands[command](parts)
-        except (ValueError, KeyError):
+        except (ValueError):
             raise ValueError(f"[ERRO] O comando '{cmd_str}' não existe. Digite /ajuda para ver a lista.")
 
     def _cmd_global(self, parts):
@@ -40,8 +44,12 @@ class ChatCommandHandler:
         return "EXIT"
 
     def _cmd_usuarios(self, _):
-        users = self.proxy.list_users()
-        print(f"\n[SISTEMA] Usuários online: {', '.join(users.get('users', []))}")
+        response = self.proxy.list_users()
+        users = response.get('data', {}).get('users', [])
+        formatted_users = ",\n - ".join(users) if users else "Nenhum usuário online"
+        
+        print(f"\n[SISTEMA] {response.get('message')}")
+        print(f"\n[SISTEMA] Usuários online:\n - {formatted_users}")
 
     def _cmd_privado(self, parts):
         if len(parts) < 3:
@@ -54,7 +62,11 @@ class ChatCommandHandler:
         history = self.proxy.get_history()
         print("\n--- HISTÓRICO DE MENSAGENS ---")
         for entry in history:
-            print(f"{entry['timestamp']} | {entry['user']}: {entry['content']}")
+            if entry['sender'] == self._logged_in_username:
+                print(f"\033[32m{entry['timestamp']} | {entry['sender']} (você): {entry['message']}\033[0m")
+                continue
+
+            print(f"{entry['timestamp']} | {entry['sender']}: {entry['message']}")
 
     def _show_help(self, _=None):
         print("\n" + "—"*40)

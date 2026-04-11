@@ -48,6 +48,8 @@ class ChatService:
         users = response.get('data', {}).get('users', [])
         formatted_users = ",\n - ".join(users) if users else "Nenhum usuário online"
         
+        formatted_users = formatted_users.replace(self._logged_in_username, f"\033[32m{self._logged_in_username} (você)\033[0m")
+        
         print(f"\n[SISTEMA] {response.get('message')}")
         print(f"\n[SISTEMA] Usuários online:\n - {formatted_users}")
 

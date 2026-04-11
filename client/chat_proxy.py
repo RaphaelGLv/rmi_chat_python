@@ -25,7 +25,9 @@ class ChatProxy:
         self.pending_replies = {}
         self.on_notification = None
         self.on_error = None
-        self._lock = threading.Lock()
+
+        self._send_lock = threading.Lock()
+        self._reply_lock = threading.Lock()
 
         self._is_listening = True
         threading.Thread(target=self._listen_loop, daemon=True).start()
@@ -50,7 +52,7 @@ class ChatProxy:
                 
                 req_id = packet.get('requestId')
                 if packet.get('operationId') == ChatOperations.REPLY.value:
-                    with self._lock:
+                    with self._reply_lock:
                         if req_id in self.pending_replies:
                             entry = self.pending_replies.get(req_id)
                             entry['data'] = packet
@@ -83,13 +85,13 @@ class ChatProxy:
         style = get_operation_style(operation_id)
         
         wait_event = threading.Event()
-        with self._lock:
+        with self._reply_lock:
             self.pending_replies[req_id] = {'event': wait_event, 'data': None}
 
         try:
             for _ in range(self._MAX_RETRIES):
                 try:
-                    chat_protocol.send_packet(self.sock, operation_id, args, req_id)
+                    self._send_packet_with_lock(operation_id, args, req_id)
                     
                     if style in ["RR", "RRA"]:
                         if wait_event.wait(timeout=self._TIMEOUT):
@@ -110,12 +112,18 @@ class ChatProxy:
             self.on_error and self.on_error(f"Operação {operation_id} falhou após {self._MAX_RETRIES} tentativas.")
 
         finally:
-            with self._lock:
+            with self._reply_lock:
                 self.pending_replies.pop(req_id, None)
 
     def _send_ack(self, target_id):
-        chat_protocol.send_packet(self.sock, ChatOperations.ACK.value, 
-                                 {"target_requestId": target_id}, target_id)
+        try:
+            self._send_packet_with_lock(ChatOperations.ACK.value, {"target_requestId": target_id}, self._generate_new_req_id())
+        except Exception as e:
+            self.on_error and self.on_error(f"Falha ao enviar ACK: {e}")
+        
+    def _send_packet_with_lock(self, operation_id, args, req_id):
+        with self._send_lock:
+            chat_protocol.send_packet(self.sock, operation_id, args, req_id)
 
     # --- Chamadas Remotas Transparentes ---
 

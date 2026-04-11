@@ -44,7 +44,6 @@ class ChatService:
         return "EXIT"
 
     def _cmd_usuarios(self, _):
-        breakpoint()
         response = self.proxy.list_users()
         users = response.get('users')
         

@@ -59,12 +59,16 @@ class ChatProxy:
                 elif packet.get('operationId') == ChatOperations.NOTIFICATION.value:
                     if self.on_notification:
                         self.on_notification(packet)
-            except: break
+            except:
+                print(f"[ERRO] Falha no proxy: {traceback.format_exc()}")
+                break
 
 
-    def _do_operation(self, operation_id, args, is_async = False):
+    def _do_operation(self, operation_id, args):
+        is_async = get_operation_style(operation_id) in ["R", "RRA"]
+        
         if is_async:
-            self._thread_executor.submit(self._do_operation, operation_id, args, False)
+            self._thread_executor.submit(self._execute_with_retry, operation_id, args)
         else:
             return self._execute_with_retry(operation_id, args)
         
@@ -77,7 +81,7 @@ class ChatProxy:
             self.pending_replies[req_id] = {'event': wait_event, 'data': None}
 
         try:
-            for attempt in range(self._MAX_RETRIES):
+            for _ in range(self._MAX_RETRIES):
                 try:
                     chat_protocol.send_packet(self.sock, operation_id, args, req_id)
                     

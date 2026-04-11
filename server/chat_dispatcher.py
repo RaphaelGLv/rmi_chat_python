@@ -3,6 +3,8 @@ from shared.enums.chat_operations import ChatOperations
 
 
 class ChatDispatcher:
+    _SERVER_REQUEST_ID = "SERVER_REQ"
+    
     def __init__(self, skeleton):
         self._skeleton = skeleton
         
@@ -40,9 +42,12 @@ class ChatDispatcher:
         user = context["current_user"]
         content = args.get('content')
         self._skeleton.save_message(user, content)
-        for name, sock in self._skeleton.active_users.items():
+
+        for username, sock in self._skeleton.active_users.items():
+            if username == user: continue
+            
             chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
-                                    {"from": user, "content": content})
+                                    {"from": user, "content": content}, self._SERVER_REQUEST_ID)
         return "Mensagem enviada"
 
     def _handle_send_private(self, args, context):
@@ -51,7 +56,7 @@ class ChatDispatcher:
         if target in self._skeleton.active_users:
             chat_protocol.send_packet(self._skeleton.active_users[target], 
                                     ChatOperations.NOTIFICATION.value, 
-                                    {"from": f"{sender} (P)", "content": content})
+                                    {"from": f"{sender} (P)", "content": content}, self._SERVER_REQUEST_ID)
             return {"status": "success"}
         return {"status": "error", "message": "Offline"}
 

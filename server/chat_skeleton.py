@@ -88,7 +88,6 @@ class ChatSkeleton:
         finally:
             conn.close()
             
-            
     def get_history(self):
         try:
             conn = self._get_db_connection()

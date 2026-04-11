@@ -46,6 +46,8 @@ class ChatDispatcher:
         context["current_user"] = username
         self._skeleton.active_users[context["current_user"]] = context["conn"]
         
+        self._broadcast_notification(username, {"from": "SISTEMA", "content": f"Usuário '{username}' entrou no chat."})
+        
         return {"status": "success", "message": f"Bem-vindo {username}!", "username": username}
 
 
@@ -54,11 +56,8 @@ class ChatDispatcher:
         content = args.get('content')
         self._skeleton.save_message(user, content)
 
-        for username, sock in self._skeleton.active_users.items():
-            if username == user: continue
-            
-            chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
-                                    {"from": user, "content": content}, self._SERVER_REQUEST_ID)
+        self._broadcast_notification(user, {"from": user, "content": content})
+        
         return {"status": "success", "message": "Mensagem global enviada com sucesso."}
 
     def _handle_send_private(self, args, context):
@@ -78,3 +77,10 @@ class ChatDispatcher:
     def _handle_get_history(self, args, context):
         message_history = self._skeleton.get_history()
         return {"status": "success", "messages": message_history}
+
+    def _broadcast_notification(self, sender, payload):
+        for username, sock in self._skeleton.active_users.items():
+            if username == sender: continue
+            
+            chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
+                                    payload, self._SERVER_REQUEST_ID)

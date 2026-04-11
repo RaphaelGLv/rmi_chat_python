@@ -1,7 +1,6 @@
 import sys
 import os
 
-from client.exceptions.request_failed import RequestFailed
 
 sys.path.append(os.getcwd())
 
@@ -20,14 +19,14 @@ class ChatClient:
             self.chat_service = ChatService(self.proxy)
             
             self.proxy.on_notification = self._display_notification
+            self.proxy.on_error = self._display_error
             
             while not self.is_running:
                 try:
                     if self._authenticate():
                         self.is_running = True
-                except RequestFailed as e:
+                except Exception as e:
                     print(f"\n[ERRO] {e}")
-                    print("[DICA] Verifique suas credenciais ou tente novamente.")
 
             self._main_loop()
 
@@ -57,6 +56,9 @@ class ChatClient:
         content = data['args'].get('content')
         print(f"\n[{sender}]: {content}")
         print("> ", end="", flush=True)
+        
+    def _display_error(self, error):
+        print(f"\n\033[91m[ERRO]: {error}\033[0m")
 
     def _main_loop(self):
         self.chat_service._show_help(None)

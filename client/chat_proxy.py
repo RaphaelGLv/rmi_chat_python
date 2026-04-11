@@ -3,7 +3,6 @@ import threading
 import traceback 
 import uuid
 import socket
-from client.exceptions.request_failed import RequestFailed
 from shared import chat_protocol
 from shared.enums.chat_operations import ChatOperations, get_operation_style
 
@@ -25,6 +24,7 @@ class ChatProxy:
         
         self.pending_replies = {}
         self.on_notification = None
+        self.on_error = None
         self._lock = threading.Lock()
 
         self._is_listening = True
@@ -36,7 +36,7 @@ class ChatProxy:
             self.sock.close()
             self._thread_executor.shutdown(wait=False)
         except Exception as e:
-            print(f"[ERRO] Falha ao fechar o proxy: {e}")
+            self.on_error and self.on_error(f"Falha ao fechar o proxy: {e}")
 
     def _generate_new_req_id(self):
         self.request_counter += 1
@@ -60,7 +60,7 @@ class ChatProxy:
                     if self.on_notification:
                         self.on_notification(packet)
             except:
-                print(f"[ERRO] Falha no proxy: {traceback.format_exc()}")
+                self.on_error and self.on_error(f"Falha no proxy: {traceback.format_exc()}")
                 break
 
 
@@ -68,7 +68,13 @@ class ChatProxy:
         is_async = get_operation_style(operation_id) in ["R", "RRA"]
         
         if is_async:
-            self._thread_executor.submit(self._execute_with_retry, operation_id, args)
+            def async_task():
+                try:
+                    self._execute_with_retry(operation_id, args)
+                except Exception as e:
+                    self.on_error and self.on_error(f"Erro na operação assíncrona {operation_id}: {e}")
+
+            self._thread_executor.submit(async_task)
         else:
             return self._execute_with_retry(operation_id, args)
         
@@ -90,14 +96,18 @@ class ChatProxy:
                             reply = self.pending_replies[req_id]['data']
                             if style == "RRA":
                                 self._send_ack(req_id)
-                            return reply.get('args').get('result')
+
+                            result = reply.get('args').get('result')
+                            if result.get('status') == "error":
+                                raise Exception(result.get('message'))
+                            return result
                         raise socket.timeout
                     
                     return {"status": "success"} 
                 except (socket.timeout, ConnectionResetError):
                     wait_event.clear()
             
-            raise RequestFailed(f"Operação {operation_id} com id = {req_id} falhou após {self._MAX_RETRIES} tentativas.")
+            self.on_error and self.on_error(f"Operação {operation_id} falhou após {self._MAX_RETRIES} tentativas.")
 
         finally:
             with self._lock:

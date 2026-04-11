@@ -31,9 +31,6 @@ class ChatSkeleton:
             conn.close()
 
     def login(self, username, password, current_conn):
-        if not username or not password:
-            return {"status": "error", "message": f"Usuário {username} já está logado."}
-
         if username in self.active_users:
             old_conn = self.active_users[username]
             
@@ -41,7 +38,6 @@ class ChatSkeleton:
                 old_conn.send(b"", socket.MSG_NOSIGNAL)
             except:
                 del self.active_users[username]
-                
         
         try:
             conn = self._get_db_connection()
@@ -54,13 +50,13 @@ class ChatSkeleton:
                 return self.register_user(username, password, conn)
 
             if user[1] != password:
-                return {"status": "error", "message": "Senha inválida."}
+                return None
         finally:
             conn.close()
             
         self.active_users[username] = current_conn
         
-        return {"status": "success", "message": f"Bem-vindo {username}!", "username": username}
+        return username
 
     def register_user(self, username, password, conn=None):
         created_conn = False
@@ -74,10 +70,10 @@ class ChatSkeleton:
         finally:
             if created_conn:
                 conn.close()
-        return {"status": "success", "message": f"Usuário {username} registrado com sucesso!"}
+        return username
     
     def list_active_users(self):
-        return {"status": "success", "message": "Usuários listados com sucesso!", "data": {"users": list(self.active_users.keys())}}
+        return list(self.active_users.keys())
 
     def save_message(self, sender, message):
         try:

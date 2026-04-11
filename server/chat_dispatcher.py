@@ -32,11 +32,22 @@ class ChatDispatcher:
         return None
 
     def _handle_login(self, args, context):
-        res = self._skeleton.login(args.get('username'), args.get('password'), context["conn"])
-        if res['status'] == "success":
-            context["current_user"] = args.get('username')
-            self._skeleton.active_users[context["current_user"]] = context["conn"]
-        return res
+        username = args.get('username')
+        password = args.get('password')
+        
+        if not username or not password:
+            return {"status": "error", "message": f"Usuário {username} já está logado."}
+        
+        res = self._skeleton.login(username, password, context["conn"])
+        
+        if res == None:
+            return {"status": "error", "message": "Senha inválida."}
+        
+        context["current_user"] = username
+        self._skeleton.active_users[context["current_user"]] = context["conn"]
+        
+        return {"status": "success", "message": f"Bem-vindo {username}!", "username": username}
+
 
     def _handle_send_global(self, args, context):
         user = context["current_user"]
@@ -48,7 +59,7 @@ class ChatDispatcher:
             
             chat_protocol.send_packet(sock, ChatOperations.NOTIFICATION.value, 
                                     {"from": user, "content": content}, self._SERVER_REQUEST_ID)
-        return "Mensagem enviada"
+        return {"status": "success", "message": "Mensagem global enviada com sucesso."}
 
     def _handle_send_private(self, args, context):
         sender = context["current_user"]
@@ -57,11 +68,13 @@ class ChatDispatcher:
             chat_protocol.send_packet(self._skeleton.active_users[target], 
                                     ChatOperations.NOTIFICATION.value, 
                                     {"from": f"{sender} (P)", "content": content}, self._SERVER_REQUEST_ID)
-            return {"status": "success"}
-        return {"status": "error", "message": "Offline"}
+            return {"status": "success", "message": "Mensagem privada enviada com sucesso."}
+        return {"status": "error", "message": f"Falha ao enviar mensagem privada: usuário '{target}'. Usuário não encontrado ou offline."}
 
     def _handle_list_users(self, args, context):
-        return self._skeleton.list_active_users()
+        active_users = self._skeleton.list_active_users()
+        return {"status": "success", "users": active_users}
 
     def _handle_get_history(self, args, context):
-        return self._skeleton.get_history()
+        message_history = self._skeleton.get_history()
+        return {"status": "success", "messages": message_history}

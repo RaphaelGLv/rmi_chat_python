@@ -44,9 +44,16 @@ class ChatService:
         return "EXIT"
 
     def _cmd_usuarios(self, _):
+        breakpoint()
         response = self.proxy.list_users()
-        users = response.get('data', {}).get('users', [])
-        formatted_users = ",\n - ".join(users) if users else "Nenhum usuário online"
+        users = response.get('users')
+        
+        if not users:
+            print(f"\n[SISTEMA] {response.get('message')}")
+            print("\n[SISTEMA] Nenhum usuário online.")
+            return
+        
+        formatted_users = ",\n - ".join(users)
         
         formatted_users = formatted_users.replace(self._logged_in_username, f"\033[32m{self._logged_in_username} (você)\033[0m")
         
@@ -61,7 +68,7 @@ class ChatService:
         self.proxy.send_private(target, message)
 
     def _cmd_historico(self, _):
-        history = self.proxy.get_history()
+        history = self.proxy.get_history().get('messages')
         print("\n--- HISTÓRICO DE MENSAGENS ---")
         for entry in history:
             if entry['sender'] == self._logged_in_username:

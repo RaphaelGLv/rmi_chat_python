@@ -59,6 +59,7 @@ class ChatClient:
         
     def _display_error(self, error):
         print(f"\n\033[91m[ERRO]: {error}\033[0m")
+        print("> ", end="", flush=True)
 
     def _main_loop(self):
         self.chat_service._show_help(None)

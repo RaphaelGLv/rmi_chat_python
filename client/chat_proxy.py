@@ -89,7 +89,9 @@ class ChatProxy:
             self.pending_replies[req_id] = {'event': wait_event, 'data': None}
 
         try:
-            for _ in range(self._MAX_RETRIES):
+            for attempt in range(self._MAX_RETRIES):
+                print(f"\033[33m[RRA - Retry] Tentando operação {operation_id} com Req ID {req_id} pela {attempt + 1}ª vez (estilo: {style})\033[0m")
+                print("\n>")
                 try:
                     self._send_packet_with_lock(operation_id, args, req_id)
                     
@@ -109,7 +111,7 @@ class ChatProxy:
                 except (socket.timeout, ConnectionResetError):
                     wait_event.clear()
             
-            self.on_error and self.on_error(f"Operação {operation_id} falhou após {self._MAX_RETRIES} tentativas.")
+            self.on_error and self.on_error(f"Operação {operation_id} com os argumentos {args} falhou após {self._MAX_RETRIES} tentativas.")
 
         finally:
             with self._reply_lock:

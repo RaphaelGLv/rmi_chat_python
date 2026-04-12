@@ -33,6 +33,8 @@ class ChatProxy:
         threading.Thread(target=self._listen_loop, daemon=True).start()
         
     def stop(self):
+        self._send_packet_with_lock(ChatOperations.DISCONNECT.value, {}, self._generate_new_req_id())
+        
         self._is_listening = False
         try:
             self.sock.close()

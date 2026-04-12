@@ -15,6 +15,7 @@ class ChatDispatcher:
             ChatOperations.SEND_GLOBAL.value: self._handle_send_global,
             ChatOperations.SEND_PRIVATE.value: self._handle_send_private,
             ChatOperations.ACK.value: self._handle_ack,
+            ChatOperations.DISCONNECT.value: self._handle_disconnect
         }
         
     def dispatch(self, op_id, args, context):
@@ -77,6 +78,13 @@ class ChatDispatcher:
     def _handle_get_history(self, args, context):
         message_history = self._skeleton.get_history()
         return {"status": "success", "messages": message_history}
+    
+    def _handle_disconnect(self, args, context):
+        user = context["current_user"]
+        if user:
+            del self._skeleton.active_users[user]
+            self._broadcast_notification(user, {"from": "SISTEMA", "content": f"Usuário '{user}' saiu do chat."})
+        return {"status": "success", "message": "Desconectado com sucesso."}
 
     def _broadcast_notification(self, sender, payload):
         for username, sock in self._skeleton.active_users.items():

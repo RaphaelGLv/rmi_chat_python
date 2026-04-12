@@ -20,11 +20,6 @@ class ChatSkeleton:
                             (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, message TEXT, timestamp TEXT)''')
             cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                             (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT)''')
-            
-            cursor.execute("SELECT COUNT(*) FROM users")
-            if cursor.fetchone()[0] == 0:
-                cursor.execute("INSERT INTO users VALUES (NULL, ?, ?)", ("admin", "123"))
-                cursor.execute("INSERT INTO users VALUES (NULL, ?, ?)", ("user", "123"))
                 
             conn.commit()
         finally:

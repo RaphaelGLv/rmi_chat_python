@@ -4,7 +4,7 @@ import os
 
 sys.path.append(os.getcwd())
 
-from client.chat_proxy import ChatProxy
+from client.chat_stub import ChatProxy
 from client.chat_service import ChatService
 
 class ChatClient:

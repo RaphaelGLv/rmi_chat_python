@@ -6,7 +6,7 @@ import socket
 from shared import chat_protocol
 from shared.enums.chat_operations import ChatOperations, get_operation_style
 
-class ChatProxy:
+class ChatStub:
     _MAX_THREAD_WORKERS = 5
     _MAX_RETRIES = 3
     _TIMEOUT = 2.0

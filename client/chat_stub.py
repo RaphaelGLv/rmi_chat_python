@@ -17,7 +17,7 @@ class ChatStub:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.server_port))
         
-        self.proxy_id = str(uuid.uuid4())[:8]
+        self.stub_id = str(uuid.uuid4())[:8]
         self.request_counter = 0
 
         self._thread_executor = ThreadPoolExecutor(max_workers=self._MAX_THREAD_WORKERS)
@@ -40,11 +40,11 @@ class ChatStub:
             self.sock.close()
             self._thread_executor.shutdown(wait=False)
         except Exception as e:
-            self.on_error and self.on_error(f"Falha ao fechar o proxy: {e}")
+            self.on_error and self.on_error(f"Falha ao fechar o stub: {e}")
 
     def _generate_new_req_id(self):
         self.request_counter += 1
-        return f'{self.proxy_id}:{self.request_counter}'
+        return f'{self.stub_id}:{self.request_counter}'
         
     def _listen_loop(self):
         while self._is_listening:
@@ -64,7 +64,7 @@ class ChatStub:
                     if self.on_notification:
                         self.on_notification(packet)
             except:
-                self.on_error and self.on_error(f"Falha no proxy: {traceback.format_exc()}")
+                self.on_error and self.on_error(f"Falha no stub: {traceback.format_exc()}")
                 break
 
 

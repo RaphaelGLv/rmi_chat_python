@@ -41,7 +41,7 @@ def receive_packet(sock):
         return json.loads(data.decode('utf-8'))
         
     except socket.timeout:
-        # Importante: repassa o timeout para o Proxy tratar
+        # Importante: repassa o timeout para o Stub tratar
         raise
     except Exception as e:
         print(f"[PROTOCOL ERROR] Erro na recepção: {e}")

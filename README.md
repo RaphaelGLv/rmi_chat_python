@@ -1,6 +1,6 @@
 # Chat Distribuído com RPC/RMI e Threads
 
-Este projeto implementa um sistema de chat distribuído em Python com comunicação via socket, protocolo próprio de requisição-resposta e separação clara entre cliente, proxy, dispatcher e skeleton. A proposta é simular o comportamento de invocação remota de métodos, como em RPC/RMI, para que as operações de chat pareçam chamadas locais, mas sejam executadas no servidor.
+Este projeto implementa um sistema de chat distribuído em Python com comunicação via socket, protocolo próprio de requisição-resposta e separação clara entre cliente, stub, dispatcher e skeleton. A proposta é simular o comportamento de invocação remota de métodos, como em RPC/RMI, para que as operações de chat pareçam chamadas locais, mas sejam executadas no servidor.
 
 O sistema atende ao enunciado do trabalho ao oferecer:
 
@@ -19,7 +19,7 @@ O documento enviado pede a criação de um chat distribuído em que o cliente n�
 
 Em termos práticos, isso significa:
 
-- o cliente usa uma camada intermediária, o proxy ou stub;
+- o cliente usa uma camada intermediária, o stub;
 - o servidor usa um dispatcher e um skeleton para receber e executar as operações;
 - cada mensagem transporta um identificador de operação e um identificador único de requisição;
 - o sistema deve demonstrar concorrência e comunicação assíncrona;
@@ -33,9 +33,9 @@ O projeto foi organizado para refletir a arquitetura clássica de RPC/RMI:
 
 O cliente é a interface usada pelo usuário final. Ele recebe comandos digitados no terminal e os converte em operações remotas. A execução principal está em [client/chat_client.py](client/chat_client.py).
 
-### 2. Proxy / Stub
+### 2. Stub
 
-O proxy fica em [client/chat_proxy.py](client/chat_proxy.py). Ele simula chamadas locais como `login`, `send_global`, `send_private`, `list_users` e `get_history`, mas internamente:
+O stub fica em [client/chat_stub.py](client/chat_stub.py). Ele simula chamadas locais como `login`, `send_global`, `send_private`, `list_users` e `get_history`, mas internamente:
 
 - monta uma requisição;
 - atribui `requestId` único;
@@ -59,7 +59,7 @@ O protocolo de comunicação está em [shared/chat_protocol.py](shared/chat_prot
 O fluxo básico segue o modelo `Request -> Reply`:
 
 1. o cliente monta um pacote com `requestId`, `operationId` e `args`;
-2. o proxy envia a requisição ao servidor;
+2. o stub envia a requisição ao servidor;
 3. o servidor lê o pacote, identifica a operação e executa a rotina adequada;
 4. se a operação for síncrona, o servidor responde com um `Reply`;
 5. o cliente trata a resposta ou a notificação recebida.
@@ -110,8 +110,8 @@ Se o usuário não existir, o sistema o cadastra automaticamente na base local. 
 Camada do usuário e do stub remoto.
 
 - [client/chat_client.py](client/chat_client.py): ponto de entrada do cliente e loop principal de uso;
-- [client/chat_proxy.py](client/chat_proxy.py): proxy/stub responsável por transformar chamadas locais em requisições remotas, gerenciando a conexão com o servidor;
-- [client/chat_service.py](client/chat_service.py): interpreta comandos digitados no terminal e chama o proxy;
+- [client/chat_stub.py](client/chat_stub.py): responsável por transformar chamadas locais em requisições remotas, gerenciando a conexão com o servidor;
+- [client/chat_service.py](client/chat_service.py): interpreta comandos digitados no terminal e chama o stub;
 - [client/enums/user_commands.py](client/enums/user_commands.py): lista os comandos aceitos pelo usuário.
 
 ### [server](server)
@@ -142,8 +142,8 @@ O cliente suporta os seguintes comandos:
 
 ## Como o Código Aplica o conceito de RMI
 
-- o cliente chama métodos como `login`, `list_users`, `send_global` e `send_private` no proxy;
-- o proxy converte essas chamadas em pacotes remotos;
+- o cliente chama métodos como `login`, `list_users`, `send_global` e `send_private` no stub;
+- o stub converte essas chamadas em pacotes remotos;
 - o servidor recebe a requisição e usa o dispatcher para escolher a operação;
 - o skeleton executa a lógica concreta;
 - a resposta volta ao cliente de forma transparente.

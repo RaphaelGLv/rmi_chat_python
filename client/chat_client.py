@@ -4,7 +4,7 @@ import os
 
 sys.path.append(os.getcwd())
 
-from client.chat_stub import ChatProxy
+from client.chat_stub import ChatStub
 from client.chat_service import ChatService
 
 class ChatClient:
@@ -15,7 +15,7 @@ class ChatClient:
 
     def start(self):
         try:
-            self.stub = ChatProxy()
+            self.stub = ChatStub()
             self.chat_service = ChatService(self.stub)
             
             self.stub.on_notification = self._display_notification

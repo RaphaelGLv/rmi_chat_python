@@ -3,7 +3,7 @@ import socket
 import sqlite3
 
 class ChatSkeleton:
-    DB_NAME = 'chat.db'
+    DB_NAME = 'chat_chaos.db'
 
     def __init__(self):
         self.active_users = {}

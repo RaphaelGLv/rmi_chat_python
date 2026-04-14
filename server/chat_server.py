@@ -15,7 +15,7 @@ from server.chat_skeleton import ChatSkeleton
 class ChatServer:
     MAX_PENDING_ACKS = 10
 
-    def __init__(self, host='0.0.0.0', port=5000):
+    def __init__(self, host='0.0.0.0', port=5001):
         self._ack_lock = threading.Lock()
         # Pending ACK Table: { (username, request_id): cached_response }
         self.pending_ack_table = {} 

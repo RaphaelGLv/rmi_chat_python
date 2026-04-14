@@ -11,7 +11,7 @@ class ChatStub:
     _MAX_RETRIES = 3
     _TIMEOUT = 2.0
 
-    def __init__(self, host='127.0.0.1', server_port=5000):
+    def __init__(self, host='127.0.0.1', server_port=5001):
         self.host = host
         self.server_port = server_port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

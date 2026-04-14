@@ -4,22 +4,22 @@ import os
 
 sys.path.append(os.getcwd())
 
-from client.chat_proxy import ChatProxy
+from client.chat_stub import ChatStub
 from client.chat_service import ChatService
 
 class ChatClient:
     def __init__(self):
-        self.proxy = None
+        self.stub = None
         self.chat_service = None
         self.is_running = False
 
     def start(self):
         try:
-            self.proxy = ChatProxy()
-            self.chat_service = ChatService(self.proxy)
+            self.stub = ChatStub()
+            self.chat_service = ChatService(self.stub)
             
-            self.proxy.on_notification = self._display_notification
-            self.proxy.on_error = self._display_error
+            self.stub.on_notification = self._display_notification
+            self.stub.on_error = self._display_error
             
             while not self.is_running:
                 try:
@@ -41,7 +41,7 @@ class ChatClient:
         user = input("Usuário: ")
         pwd = input("Senha: ")
         
-        res = self.proxy.login(user, pwd)
+        res = self.stub.login(user, pwd)
         
         if res and res.get('status') == "success":
             print(f"\n[SISTEMA] {res.get('message')}")
@@ -82,8 +82,8 @@ class ChatClient:
 
     def stop(self):
         self.is_running = False
-        if self.proxy:
-            self.proxy.stop()
+        if self.stub:
+            self.stub.stop()
         print("[SISTEMA] Chat encerrado.")
 
 if __name__ == "__main__":

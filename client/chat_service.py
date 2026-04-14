@@ -1,9 +1,9 @@
 from client.enums.user_commands import UserCommands
 
 class ChatService:
-    def __init__(self, proxy):
+    def __init__(self, stub):
         self._logged_in_username = None
-        self.proxy = proxy
+        self.stub = stub
         self._commands = {
             UserCommands.SAIR: self._cmd_sair,
             UserCommands.USUARIOS: self._cmd_usuarios,
@@ -35,7 +35,7 @@ class ChatService:
             print("[ERRO] Uso correto: /g <mensagem>")
             return
         content = " ".join(parts[1:]) 
-        return self.proxy.send_global(content)
+        return self.stub.send_global(content)
 
     # --- Métodos de Comando ---
 
@@ -44,7 +44,7 @@ class ChatService:
         return "EXIT"
 
     def _cmd_usuarios(self, _):
-        response = self.proxy.list_users()
+        response = self.stub.list_users()
         users = response.get('users')
         
         if not users:
@@ -64,10 +64,10 @@ class ChatService:
             print("[ERRO] Uso correto: /p <usuario> <mensagem>")
             return
         target, message = parts[1], parts[2]
-        self.proxy.send_private(target, message)
+        self.stub.send_private(target, message)
 
     def _cmd_historico(self, _):
-        history = self.proxy.get_history().get('messages')
+        history = self.stub.get_history().get('messages')
         print("\n--- HISTÓRICO DE MENSAGENS ---")
         for entry in history:
             if entry['sender'] == self._logged_in_username:
